@@ -1,9 +1,10 @@
-from tensorflow.keras.models import Model, model_from_json
+from tensorflow.keras.models import Model, model_from_json, clone_model
 from tensorflow.keras.layers import Reshape, Activation, BatchNormalization, \
     Conv2D, Flatten, Dropout, Dense
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input
 from os.path import exists
+from threading import Lock
 
 from NeuralNetwork import NeuralNetwork
 
@@ -39,6 +40,8 @@ class MancalaNeuralNetwork(NeuralNetwork):
         self.model.compile(loss=['categorical_crossentropy',
                                  'mean_squared_error'],
                            optimizer=Adam(args['lr']))
+
+        self.predict_lock = Lock()
 
     def create_nn_from_scratch(self):
         # Neural Net
@@ -78,7 +81,10 @@ class MancalaNeuralNetwork(NeuralNetwork):
                         *s.board[6:12], s.pit_neg_1]).astype('float32')
         x = np.reshape(x, (1, 14)).astype('float32')
 
+        self.predict_lock.acquire()
         pi, v = self.model.predict(x, verbose=False)
+        self.predict_lock.release()
+
         return pi[0], v[0]
 
     def load_model(self):
@@ -96,3 +102,25 @@ class MancalaNeuralNetwork(NeuralNetwork):
             json_file.write(model_json)
         self.model.save_weights("nn_model_weights.h5")
         print("Saved model")
+
+    def save_model_temp(self):
+        model_json = self.model.to_json()
+        with open("nn_model_temp.json", "w") as json_file:
+            json_file.write(model_json)
+        self.model.save_weights("nn_model_temp_weights.h5")
+        print("Saved model")
+
+    def load_model_temp(self):
+        model_file = open('nn_model_temp.json', 'r')
+        model_json = model_file.read()
+        model_file.close()
+        self.model = model_from_json(model_json)
+
+        self.model.load_weights("nn_model_temp_weights.h5")
+        print("Loaded model")
+
+    def copy_nn(self):
+        nn_copy = MancalaNeuralNetwork()
+        nn_copy.model = clone_model(self.model)
+        nn_copy.model.set_weights(self.model.get_weights())
+        return nn_copy

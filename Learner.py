@@ -1,6 +1,7 @@
 from MCTS import MCTS
 from threading import Thread
 import numpy as np
+from multiprocessing import Pool
 
 
 class Learner:
@@ -13,7 +14,10 @@ class Learner:
         self.pit_num_games = pit_num_games
         self.pit_win_threshold = pit_win_threshold
 
-    def execute_episode(self, game_class, nn):
+    def execute_episode(self, game_class, nn_class):
+        nn = nn_class()
+        nn.load_model_temp()
+
         data = []
         s = game_class.start_state()
         mcts = MCTS(self.c_puct, game_class.get_num_actions())
@@ -36,6 +40,8 @@ class Learner:
             if s.is_terminal():
                 break
         self.assign_rewards(data, s)
+
+        print("- Episode terminated")
         return data
 
     def assign_rewards(self, data, term_s):
@@ -77,6 +83,31 @@ class Learner:
         nn_1_wins = winner_li.count(1)
         return nn_1_wins / self.pit_num_games
 
+    def execute_episodes(self, game_class, nn, nn_class):
+        # data = []
+
+        # print("- Starting episodes")
+        # threads = [None] * self.num_eps
+        # for i in range(len(threads)):
+        #     threads[i] = Thread(target=self.execute_episode,
+        #                         args=(game_class, nn, data))
+        #     threads[i].start()
+
+        # print("- Waiting for episodes")
+        # for i in range(len(threads)):
+        #     threads[i].join()
+
+        # return data
+
+        nn.save_model_temp()
+
+        p = Pool()
+        res = p.starmap(self.execute_episode,
+                        [(game_class, nn_class)] * self.num_eps)
+        p.close()
+
+        print(res)
+
     def optimize_nn(self, game_class, nn_class):
         nn = nn_class()
 
@@ -84,15 +115,19 @@ class Learner:
         for i in range(self.num_nns):
             print("Iteration", i + 1, "of", self.num_nns)
             print("1. Generating data through MCTS")
-            for j in range(self.num_eps):
-                print("- Executing episode", j + 1, "of", self.num_eps)
-                data += self.execute_episode(game_class, nn)
+            # for j in range(self.num_eps):
+            #     print("- Executing episode", j + 1, "of", self.num_eps)
+            #     data += self.execute_episode(game_class, nn)
+
+            data = self.execute_episodes(game_class, nn, nn_class)
+
             print("2. Training NN on data")
             new_nn = nn_class()
             new_nn.train(data)
 
             print("3. Pitting new NN and old NN")
             frac_win = self.pit_nns(game_class, new_nn, nn)
+
             print("4. Frac win of new NN", frac_win)
             if frac_win > self.pit_win_threshold:
                 nn = new_nn

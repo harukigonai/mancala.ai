@@ -13,3 +13,7 @@ class NeuralNetwork(ABC):
     @abstractmethod
     def predict(self, s):
         pass
+
+    @abstractmethod
+    def copy_nn(self):
+        pass
