@@ -87,7 +87,12 @@ class MancalaNeuralNetwork(NeuralNetwork):
         P_li = np.array([sample['P'] for sample in data]).astype('float32')
         v_li = np.array([sample['v'] for sample in data]).astype('float32')
 
-        self.model.fit(x=s_li, y=[P_li, v_li], batch_size=len(data), epochs=1)
+        self.model.fit(x=s_li,
+                       y=[P_li, v_li],
+                       batch_size=len(data),
+                       epochs=1,
+                       workers=4,
+                       use_multiprocessing=False)
 
     def predict(self, s):
         x = np.asarray([*s.board[0:6], s.pit_pos_1,
