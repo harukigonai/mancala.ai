@@ -1,10 +1,10 @@
-from tensorflow.keras.models import Model, model_from_json, clone_model
+from xml.dom import ValidationErr
+from tensorflow.keras.models import Model, clone_model
 from tensorflow.keras.layers import Reshape, Activation, BatchNormalization, \
     Conv2D, Flatten, Dropout, Dense
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras import Input
 from os.path import exists
-from threading import Lock
 
 from NeuralNetwork import NeuralNetwork
 
@@ -19,8 +19,37 @@ args = {
     'num_channels': 512,
 }
 
+MANCALA_MODEL = "nn_model.json"
+MANCALA_WEIGHTS_PERM = "nn_weights_perm.h5"
+MANCALA_WEIGHTS_CURR = "nn_weights_curr.h5"
+MANCALA_WEIGHTS_NEW = "nn_weights_new.h5"
+
+WEIGHTS_NAME_TO_FILE = {
+    "perm": MANCALA_WEIGHTS_PERM,
+    "curr": MANCALA_WEIGHTS_CURR,
+    "new": MANCALA_WEIGHTS_NEW
+}
+
 
 class MancalaNeuralNetwork(NeuralNetwork):
+
+    def __init__(self, load_weights=None, train_data=None):
+        self.create_model()
+
+        # load weights
+        if load_weights is not None and train_data is not None:
+            err = "Only one parameter may be not None"
+            raise ValidationErr(err)
+        if load_weights is not None and load_weights in WEIGHTS_NAME_TO_FILE:
+            file_name = WEIGHTS_NAME_TO_FILE[load_weights]
+            if exists(file_name):
+                self.model.load_weights(file_name)
+        elif train_data is not None:
+            self.train(train_data)
+        else:
+            err = "load_weights must be perm, curr, or new"
+            raise TypeError(err)
+
     def constructActivation(self, input):
         conv2D_layer = Conv2D(args['num_channels'], 3, padding='same')(input)
         batch_norm_layer = BatchNormalization(axis=3)(conv2D_layer)
@@ -32,18 +61,7 @@ class MancalaNeuralNetwork(NeuralNetwork):
         activation_layer = Activation('relu')(batch_norm_layer)
         return Dropout(args['dropout'])(activation_layer)
 
-    def __init__(self):
-        if exists('nn_model.json'):
-            self.load_model()
-        else:
-            self.create_nn_from_scratch()
-        self.model.compile(loss=['categorical_crossentropy',
-                                 'mean_squared_error'],
-                           optimizer=Adam(args['lr']))
-
-        self.predict_lock = Lock()
-
-    def create_nn_from_scratch(self):
+    def create_model(self):
         # Neural Net
         self.input_boards = Input(shape=(14, ))
 
@@ -58,14 +76,9 @@ class MancalaNeuralNetwork(NeuralNetwork):
         self.v = Dense(1, activation='tanh', name='v')(s_fc2)
 
         self.model = Model(inputs=self.input_boards, outputs=[self.pi, self.v])
-
-    def load_nn(self):
-        nn_file = open('nn_model.json', 'r')
-        nn_file_json = nn_file.read()
-        nn_file.close()
-        self.model = model_from_json(nn_file_json)
-
-        self.model.load_weights("nn_model_weights.json")
+        self.model.compile(loss=['categorical_crossentropy',
+                                 'mean_squared_error'],
+                           optimizer=Adam(args['lr']))
 
     def train(self, data):
         s_li = np.array([[*sample['s'].board[0:6], sample['s'].pit_pos_1,
@@ -81,43 +94,21 @@ class MancalaNeuralNetwork(NeuralNetwork):
                         *s.board[6:12], s.pit_neg_1]).astype('float32')
         x = np.reshape(x, (1, 14)).astype('float32')
 
-        self.predict_lock.acquire()
         pi, v = self.model.predict(x, verbose=False)
-        self.predict_lock.release()
-
         return pi[0], v[0]
-
-    def load_model(self):
-        model_file = open('nn_model.json', 'r')
-        model_json = model_file.read()
-        model_file.close()
-        self.model = model_from_json(model_json)
-
-        self.model.load_weights("nn_model_weights.h5")
-        print("Loaded model")
 
     def save_model(self):
         model_json = self.model.to_json()
-        with open("nn_model.json", "w") as json_file:
+        with open(MANCALA_MODEL, "w") as json_file:
             json_file.write(model_json)
-        self.model.save_weights("nn_model_weights.h5")
-        print("Saved model")
 
-    def save_model_temp(self):
-        model_json = self.model.to_json()
-        with open("nn_model_temp.json", "w") as json_file:
-            json_file.write(model_json)
-        self.model.save_weights("nn_model_temp_weights.h5")
-        print("Saved model")
-
-    def load_model_temp(self):
-        model_file = open('nn_model_temp.json', 'r')
-        model_json = model_file.read()
-        model_file.close()
-        self.model = model_from_json(model_json)
-
-        self.model.load_weights("nn_model_temp_weights.h5")
-        print("Loaded model")
+    def save_weights(self, with_specified_weights_if_exist):
+        if with_specified_weights_if_exist in WEIGHTS_NAME_TO_FILE:
+            file_name = WEIGHTS_NAME_TO_FILE[with_specified_weights_if_exist]
+            self.model.save_weights(file_name)
+        else:
+            err = "with_specified_weights_if_exist must be perm, curr, or new"
+            raise TypeError(err)
 
     def copy_nn(self):
         nn_copy = MancalaNeuralNetwork()

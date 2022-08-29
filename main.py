@@ -8,10 +8,10 @@ from timeit import timeit
 
 args = {
     'num_nns': 1,
-    'num_eps': 10,
-    'num_MCTS_sims': 10,
+    'num_eps': 1,
+    'num_MCTS_sims': 1,
     'c_puct': 0.5,
-    'pit_num_games': 52,
+    'pit_num_games': 10,
     'pit_win_threshold': 0.5
 }
 
@@ -24,7 +24,8 @@ def run():
 
 
 def main():
-    print(timeit('run()', setup="from __main__ import run"))
+    time_elapsed = timeit('run()', number=1, setup="from __main__ import run")
+    print("Time elapsed:", time_elapsed)
 
 
 if __name__ == "__main__":
