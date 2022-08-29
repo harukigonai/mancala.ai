@@ -1,7 +1,6 @@
 from MCTS import MCTS
 import numpy as np
-from multiprocessing import Pool
-
+from multiprocessing import Pool, set_start_method
 
 class Learner:
     def __init__(self, num_nns, num_eps, num_MCTS_sims,
@@ -116,6 +115,7 @@ class Learner:
 
     def optimize_nn(self, game_class, nn_class):
         nn = nn_class("perm")
+        set_start_method("spawn")
 
         data = []
         for i in range(self.num_nns):
