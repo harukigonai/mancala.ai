@@ -120,3 +120,6 @@ class MancalaNeuralNetwork(NeuralNetwork):
         nn_copy.model = clone_model(self.model)
         nn_copy.model.set_weights(self.model.get_weights())
         return nn_copy
+
+    def free_model(self):
+        del self.model

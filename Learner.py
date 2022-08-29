@@ -1,6 +1,7 @@
 from MCTS import MCTS
 import numpy as np
 from multiprocessing import Pool, set_start_method
+from gc import collect
 
 
 class Learner:
@@ -14,21 +15,6 @@ class Learner:
         self.pit_win_threshold = pit_win_threshold
 
     def execute_episodes(self, game_class, nn_class):
-        # data = []
-
-        # print("- Starting episodes")
-        # threads = [None] * self.num_eps
-        # for i in range(len(threads)):
-        #     threads[i] = Thread(target=self.execute_episode,
-        #                         args=(game_class, nn, data))
-        #     threads[i].start()
-
-        # print("- Waiting for episodes")
-        # for i in range(len(threads)):
-        #     threads[i].join()
-
-        # return data
-
         p = Pool()
         res = p.starmap(self.execute_episode,
                         [(game_class, nn_class)] * self.num_eps)
@@ -62,6 +48,8 @@ class Learner:
                 break
         self.assign_rewards(data, s)
 
+        nn.free_model()
+
         print("- Episode terminated")
         return data
 
@@ -70,29 +58,13 @@ class Learner:
             state = state_info['s']
             state_info['v'] = state.calculate_state_reward(term_s)
 
-    def nn_get_action(self, nn, game, s):
+    def nn_get_action(self, nn, s):
         pi, _ = nn.predict(s)
-        P = np.multiply(pi, game.get_valid_actions_mask(s))
+        P = np.multiply(pi, s.get_valid_actions_mask())
         P = P / sum(P)
         return np.random.choice(len(P), p=P)
 
     def pit_nns(self, game, nn_class):
-        # winner_li = []
-
-        # print("- Starting pitting threads")
-        # threads = [None] * self.pit_num_games
-        # for i in range(len(threads)):
-        #     threads[i] = Thread(target=self.pit_nns_once,
-        #                         args=(game, nn_1, nn_2, winner_li))
-        #     threads[i].start()
-
-        # print("- Waiting for pitting threads")
-        # for i in range(len(threads)):
-        #     threads[i].join()
-
-        # nn_1_wins = winner_li.count(1)
-        # return nn_1_wins / self.pit_num_games
-
         p = Pool()
         winner_li = p.starmap(self.pit_nns_once,
                               [(game, nn_class)] * self.pit_num_games)
@@ -101,19 +73,22 @@ class Learner:
         new_nn_wins = winner_li.count(1)
         return new_nn_wins / self.pit_num_games
 
-    def pit_nns_once(self, game, nn_class):
+    def pit_nns_once(self, game_class, nn_class):
         new_nn = nn_class("new")
         curr_nn = nn_class("curr")
 
-        s = game.start_state()
-        while not game.is_terminal(s):
+        s = game_class.start_state()
+        while not s.is_terminal():
             if s.turn == 1:
-                a = self.nn_get_action(new_nn, game, s)
+                a = self.nn_get_action(new_nn, s)
             else:
-                a = self.nn_get_action(curr_nn, game, s)
-            s = game.next_state(s, a)
-        print("- Winner of pitting is", game.game_reward(s))
-        return game.game_reward(s)
+                a = self.nn_get_action(curr_nn, s)
+            s = s.next_state(a)
+        new_nn.free_model()
+        curr_nn.free_model()
+
+        print("- Winner of pitting is", s.game_reward())
+        return s.game_reward()
 
     def optimize_nn(self, game_class, nn_class):
         nn = nn_class("perm")
@@ -125,10 +100,6 @@ class Learner:
 
             print("Iteration", i + 1, "of", self.num_nns)
             print("1. Generating data through MCTS")
-            # for j in range(self.num_eps):
-            #     print("- Executing episode", j + 1, "of", self.num_eps)
-            #     data += self.execute_episode(game_class, nn)
-
             data = self.execute_episodes(game_class, nn_class)
 
             print("2. Training NN on data")
@@ -141,6 +112,9 @@ class Learner:
             print("4. Frac win of new NN", frac_win)
             if frac_win > self.pit_win_threshold:
                 nn = new_nn
+
+            collect()
         nn.save_model()
         nn.save_weights("perm")
+        nn.free_model()
         return nn
