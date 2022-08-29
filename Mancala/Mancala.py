@@ -34,6 +34,53 @@ class Mancala(Game):
     def next_state(self, a):
         s_cpy = copy.deepcopy(self)
 
+        pebbles_in_hand = s_cpy.board[a]
+        s_cpy.board[a] = 0
+
+        curr_sp = (a + 1) % 12
+
+        last_pit = -1
+
+        while pebbles_in_hand != 0:
+            s_cpy.board[curr_sp] += 1
+            pebbles_in_hand -= 1
+            last_pit = curr_sp
+
+            if pebbles_in_hand != 0:
+                if (s_cpy.turn == 1 and curr_sp == 5):
+                    s_cpy.pit_pos_1 += 1
+                    pebbles_in_hand -= 1
+                    last_pit = P_POS_1_PIT
+                if (s_cpy.turn == -1 and curr_sp == 11):
+                    s_cpy.pit_neg_1 += 1
+                    pebbles_in_hand -= 1
+                    last_pit = P_NEG_1_PIT
+            curr_sp = (curr_sp + 1) % 12
+
+        if last_pit not in [P_POS_1_PIT, P_NEG_1_PIT]:
+            pit_across_from_last_pit = 11 - last_pit
+            last_pit_was_empty_and_across_from_non_empty_pit = \
+                s_cpy.board[last_pit] == 1 and \
+                s_cpy.board[pit_across_from_last_pit] != 0
+
+            if last_pit_was_empty_and_across_from_non_empty_pit:
+                if 0 <= last_pit and last_pit <= 5 and s_cpy.turn == 1:
+                    s_cpy.pit_pos_1 += s_cpy.board[last_pit] + \
+                        s_cpy.board[pit_across_from_last_pit]
+                    s_cpy.board[last_pit] = 0
+                    s_cpy.board[pit_across_from_last_pit] = 0
+                elif 6 <= last_pit and last_pit <= 11 and s_cpy.turn == -1:
+                    s_cpy.pit_neg_1 += s_cpy.board[last_pit] + \
+                        s_cpy.board[pit_across_from_last_pit]
+                    s_cpy.board[last_pit] = 0
+                    s_cpy.board[pit_across_from_last_pit] = 0
+            s_cpy.turn = -s_cpy.turn
+        return s_cpy
+
+    # Given state and action, return next state
+    def next_state_avalanche(self, a):
+        s_cpy = copy.deepcopy(self)
+
         move_is_over = False
         pebbles_in_hand = s_cpy.board[a]
         s_cpy.board[a] = 0

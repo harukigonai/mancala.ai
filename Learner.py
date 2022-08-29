@@ -2,6 +2,7 @@ from MCTS import MCTS
 import numpy as np
 from multiprocessing import Pool, set_start_method
 
+
 class Learner:
     def __init__(self, num_nns, num_eps, num_MCTS_sims,
                  c_puct, pit_num_games, pit_win_threshold):
@@ -54,6 +55,9 @@ class Learner:
             P = np.multiply(mcts.P[s], s.get_valid_actions_mask())
             P = P / sum(P)
             a = np.random.choice(len(P), p=P)
+
+            print("predicting", s.board, s.pit_pos_1, s.pit_neg_1, s.turn, a)
+
             s = s.next_state(a)
 
             if s.is_terminal():
