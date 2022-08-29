@@ -56,8 +56,6 @@ class Learner:
             P = P / sum(P)
             a = np.random.choice(len(P), p=P)
 
-            print("predicting", s.board, s.pit_pos_1, s.pit_neg_1, s.turn, a)
-
             s = s.next_state(a)
 
             if s.is_terminal():
